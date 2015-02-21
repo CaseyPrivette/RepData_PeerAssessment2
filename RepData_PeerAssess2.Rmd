@@ -1,0 +1,19 @@
+---
+title: "Impacts of Storms in the US Since 1950"
+author: "Casey Privette"
+date: "Friday, February 20, 2015"
+output: html_document
+---
+
+#Overview
+Synopsis goes here.
+
+#Data Processing
+First load the data into an R object.
+```{r loadingdata, cache=TRUE}
+setwd("~/DataScienceCoursera/ReproRes/RepData_PeerAssessment2")
+fileURL <- "http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+download.file(fileURL, destfile="stormdata.csv.bz2")
+stormdata <- read.csv(bzfile("stormdata.csv.bz2"))
+print(date())
+```

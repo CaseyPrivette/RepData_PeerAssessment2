@@ -71,6 +71,120 @@ download.file(fileURL, destfile=&quot;stormdata.csv.bz2&quot;)
 stormdata &lt;- read.csv(bzfile(&quot;stormdata.csv.bz2&quot;))
 print(date())</code></pre>
 <pre><code>## [1] &quot;Fri Feb 20 23:01:14 2015&quot;</code></pre>
+<p>Select the columns in the data frame to include only needed variables.</p>
+<pre class="r"><code>library(dplyr)</code></pre>
+<pre><code>## 
+## Attaching package: 'dplyr'
+## 
+## The following object is masked from 'package:stats':
+## 
+##     filter
+## 
+## The following objects are masked from 'package:base':
+## 
+##     intersect, setdiff, setequal, union</code></pre>
+<pre class="r"><code>names(stormdata) &lt;- tolower(names(stormdata))
+stormdata &lt;- select(stormdata, evtype, fatalities, injuries, propdmg, 
+                     propdmgexp, cropdmg, cropdmgexp)</code></pre>
+<p>Convert the propdmgexp and cropdmgexp variables to a number and multiply values by propdmg and cropdmg variables to obtain new variables totpropdmg and totcropdmg to reflect the monetary damage in a constant dollars.</p>
+<pre class="r"><code>stormdata$propdmgexp &lt;- gsub(&quot;K&quot;, 1000, stormdata$propdmgexp)
+stormdata$propdmgexp &lt;- gsub(&quot;M&quot;, 1000000, stormdata$propdmgexp)
+stormdata$propdmgexp &lt;- gsub(&quot;B&quot;, 1000000000, stormdata$propdmgexp)
+
+stormdata$propdmgexp &lt;- as.numeric(stormdata$propdmgexp)</code></pre>
+<pre><code>## Warning: NAs introduced by coercion</code></pre>
+<pre class="r"><code>stormdata$totpropdmg &lt;- stormdata$propdmg * stormdata$propdmgexp
+
+stormdata$cropdmgexp &lt;- as.numeric(stormdata$cropdmgexp)
+stormdata$totcropdmg &lt;- stormdata$cropdmg * stormdata$cropdmgexp</code></pre>
+<p>Now summarize the data grouped by evtype variable and sum the variables fatalities, injuries, totpropdmg, totcropdmg, as well as create a variable instance to show the number of occurences of each event type.</p>
+<pre class="r"><code>summary &lt;- stormdata %&gt;%
+      group_by(evtype) %&gt;%
+      summarise(instance = n(),
+                sumfatality = sum(fatalities, na.rm=T),
+                suminjur = sum(injuries, na.rm=T),
+                sumpropdmg = sum(totpropdmg, na.rm=T),
+                sumcropdmg = sum(totcropdmg, na.rm=T))
+
+str(summary)</code></pre>
+<pre><code>## Classes 'tbl_df', 'tbl' and 'data.frame':    985 obs. of  6 variables:
+##  $ evtype     : Factor w/ 985 levels &quot;   HIGH SURF ADVISORY&quot;,..: 1 2 3 4 5 6 7 8 9 10 ...
+##  $ instance   : int  1 1 1 1 4 1 1 1 1 4 ...
+##  $ sumfatality: num  0 0 0 0 0 0 0 0 0 0 ...
+##  $ suminjur   : num  0 0 0 0 0 0 0 0 0 0 ...
+##  $ sumpropdmg : num  200000 0 50000 0 8100000 8000 0 0 5000 0 ...
+##  $ sumcropdmg : num  0 0 0 0 0 0 0 0 0 0 ...
+##  - attr(*, &quot;drop&quot;)= logi TRUE</code></pre>
+<p>This results in a table with 985 rows. A look at the table reveals that there are many rows with zero for all variables. Also, rows with fewer than 10 injuries or fatalities and fewer than $1000 in damage do not have a significant effect on this analysis therefore we’ll remove those.</p>
+<pre class="r"><code>summary &lt;- filter(summary, sumfatality &gt; 10 &amp; suminjur &gt; 10 |
+                   sumpropdmg &gt; 1000 &amp; sumcropdmg &gt; 1000)
+
+str(summary)</code></pre>
+<pre><code>## Classes 'tbl_df', 'tbl' and 'data.frame':    77 obs. of  6 variables:
+##  $ evtype     : Factor w/ 985 levels &quot;   HIGH SURF ADVISORY&quot;,..: 19 30 66 79 87 89 95 117 118 130 ...
+##  $ instance   : int  386 2719 72 539 6 1293 2488 427 1 1678 ...
+##  $ sumfatality: num  224 101 35 95 0 ...
+##  $ suminjur   : num  170 805 48 12 0 ...
+##  $ sumpropdmg : num  3.72e+06 6.59e+08 5.00e+05 1.99e+06 8.00e+06 ...
+##  $ sumcropdmg : num  0 1428 0 4200 3058 ...</code></pre>
+<p>This results in a more manageable 77 observations. Another look at the table reveals that there are many closely related event types. We’ll collapse these into 21 classifications with a new variable, class. These are the transformations:</p>
+<ul>
+<li>avalanche &lt;- AVALANCHE</li>
+<li>cold &lt;- COLD, COLD/WIND CHILL, DAMAGING FREEZE, EXTREME COLD, EXTREME COLD/WIND CHILL, FREEZE, FROST, FROST/FREEZE</li>
+<li>drought &lt;- DROUGHT</li>
+<li>dust storm &lt;- DUST STORM, DUST STORM/HIGH WINDS</li>
+<li>flood &lt;- FLASH FLOOD, FLASH FLOOD/FLOOD, FLASH FLOODING, FLASH FLOODING/FLOOD, FLOOD, FLOOD, FLASH FLOOD, FLOODING, HEAVY RAINS/FLOODING, RIVER FLOOD, River Flooding, URBAN FLOOD, URBAN FLOODING, URBAN/SML STREAM FLD</li>
+<li>fog &lt;- DENSE FOG, FOG</li>
+<li>hail &lt;- HAIL, SMALL HAIL</li>
+<li>heat &lt;- EXCESSIVE HEAT, EXTREME HEAT, HEAT, HEAT WAVE, UNSEASONABLY WARM</li>
+<li>heavy rain &lt;- HEAVY RAIN, HEAVY RAINS, RAIN</li>
+<li>hurr/trop storm &lt;- HURRICANE, HURRICANE ERIN, HURRICANE FELIX, HURRICANE/TYPHOON, TROPICAL STORM, TROPICAL STORM GORDON, TYPHOON</li>
+<li>ice &lt;- ICE STORM</li>
+<li>landslide &lt;- LANDSLIDE</li>
+<li>lightning &lt;- LIGHTNING</li>
+<li>other &lt;- OTHER</li>
+<li>snow &lt;- BLIZZARD, HEAVY SNOW, WINTER STORM, WINTER STORMS, WINTER WEATHER, WINTER WEATHER/MIX</li>
+<li>surf &lt;- HEAVY SURF/HIGH SURF, HIGH SURF, RIP CURRENT, RIP CURRENTS, STORM SURGE, STORM SURGE/TIDE</li>
+<li>tornado &lt;- TORNADO</li>
+<li>tstorm &lt;- THUNDERSTORM WIND, THUNDERSTORM WINDS, TSTM WIND, TSTM WIND/HAIL</li>
+<li>tsunami &lt;- TSUNAMI</li>
+<li>wildfire &lt;- FOREST FIRES, WILD/FOREST FIRE, WILDFIRE, WILDFIRES</li>
+<li>wind &lt;- GUSTY WINDS, HIGH WIND, HIGH WINDS, HIGH WINDS/COLD, MARINE STRONG WIND, STRONG WIND, WIND</li>
+</ul>
+<pre class="r"><code>class &lt;- c(&quot;avalanche&quot;, &quot;snow&quot;, &quot;cold&quot;, &quot;cold&quot;, &quot;cold&quot;, &quot;fog&quot;, &quot;drought&quot;,
+           &quot;dust storm&quot;, &quot;dust storm&quot;, &quot;heat&quot;, &quot;cold&quot;, &quot;cold&quot;, &quot;heat&quot;,
+           &quot;flood&quot;, &quot;flood&quot;, &quot;flood&quot;, &quot;flood&quot;, &quot;flood&quot;, &quot;flood&quot;, &quot;flood&quot;,
+           &quot;fog&quot;, &quot;wildfire&quot;, &quot;cold&quot;, &quot;cold&quot;, &quot;cold&quot;, &quot;wind&quot;, &quot;hail&quot;,
+           &quot;heat&quot;, &quot;heat&quot;, &quot;heavy rain&quot;, &quot;heavy rain&quot;, &quot;flood&quot;, &quot;snow&quot;,
+           &quot;surf&quot;, &quot;surf&quot;, &quot;wind&quot;, &quot;wind&quot;, &quot;wind&quot;, &quot;hurr/trop storm&quot;,
+           &quot;hurr/trop storm&quot;, &quot;hurr/trop storm&quot;, &quot;hurr/trop storm&quot;, &quot;ice&quot;,
+           &quot;landslide&quot;, &quot;lightning&quot;, &quot;wind&quot;, &quot;other&quot;, &quot;heavy rain&quot;, &quot;surf&quot;,
+           &quot;surf&quot;, &quot;flood&quot;, &quot;flood&quot;, &quot;hail&quot;, &quot;surf&quot;, &quot;surf&quot;, &quot;wind&quot;, &quot;tstorm&quot;,
+           &quot;tstorm&quot;, &quot;tornado&quot;, &quot;hurr/trop storm&quot;, &quot;hurr/trop storm&quot;, &quot;tstorm&quot;,
+           &quot;tstorm&quot;, &quot;tsunami&quot;, &quot;hurr/trop storm&quot;, &quot;heat&quot;, &quot;flood&quot;, &quot;flood&quot;,
+           &quot;flood&quot;, &quot;wildfire&quot;, &quot;wildfire&quot;, &quot;wildfire&quot;, &quot;wind&quot;, &quot;snow&quot;,
+           &quot;snow&quot;, &quot;snow&quot;, &quot;snow&quot;)
+
+summary$class &lt;- class</code></pre>
+<p>Now we summarize the data by the class variable and sum the variables instance, sumfatality, suminjur, sumpropdmg, sumcropdmg.</p>
+<pre class="r"><code>analysis &lt;- summary %&gt;%
+      group_by(class) %&gt;%
+      summarise(instance = sum(instance),
+                sumfatality = sum(sumfatality, na.rm=T),
+                suminjur = sum(suminjur, na.rm=T),
+                sumpropdmg = sum(sumpropdmg, na.rm=T),
+                sumcropdmg = sum(sumcropdmg, na.rm=T)) %&gt;%
+      arrange(desc(sumfatality))
+
+str(analysis)</code></pre>
+<pre><code>## Classes 'tbl_df', 'tbl' and 'data.frame':    21 obs. of  6 variables:
+##  $ class      : chr  &quot;tornado&quot; &quot;heat&quot; &quot;flood&quot; &quot;lightning&quot; ...
+##  $ instance   : int  60652 2667 84985 15754 2136 324374 37993 25757 3743 386 ...
+##  $ sumfatality: num  5633 3119 1539 816 739 ...
+##  $ suminjur   : num  91346 9106 8673 5230 772 ...
+##  $ sumpropdmg : num  5.69e+10 2.01e+07 1.67e+11 9.29e+08 4.81e+10 ...
+##  $ sumcropdmg : num  700120 10998 2582918 25081 5985 ...</code></pre>
+<p>This gives us 21 events in a tidy summary of the number of occurences (instance), number of fatalities (sumfatality), number of injuries (suminjur), total dollar value of property damage (sumpropdmg) and total dollar value of crop damage (totcropdmg) to complete our analysis. The results are below.</p>
 </div>
 
 

@@ -17,3 +17,104 @@ download.file(fileURL, destfile="stormdata.csv.bz2")
 stormdata <- read.csv(bzfile("stormdata.csv.bz2"))
 print(date())
 ```
+
+Select the columns in the data frame to include only needed variables.
+```{r select, cache=T}
+library(dplyr)
+names(stormdata) <- tolower(names(stormdata))
+stormdata <- select(stormdata, evtype, fatalities, injuries, propdmg, 
+                     propdmgexp, cropdmg, cropdmgexp)
+```
+
+Convert the propdmgexp and cropdmgexp variables to a number and multiply values by propdmg and cropdmg variables to obtain new variables totpropdmg and totcropdmg to reflect the monetary damage in a constant dollars.
+```{r newvariable, cache=TRUE}
+stormdata$propdmgexp <- gsub("K", 1000, stormdata$propdmgexp)
+stormdata$propdmgexp <- gsub("M", 1000000, stormdata$propdmgexp)
+stormdata$propdmgexp <- gsub("B", 1000000000, stormdata$propdmgexp)
+
+stormdata$propdmgexp <- as.numeric(stormdata$propdmgexp)
+stormdata$totpropdmg <- stormdata$propdmg * stormdata$propdmgexp
+
+stormdata$cropdmgexp <- as.numeric(stormdata$cropdmgexp)
+stormdata$totcropdmg <- stormdata$cropdmg * stormdata$cropdmgexp
+```
+
+Now summarize the data grouped by evtype variable and sum the variables fatalities, injuries, totpropdmg, totcropdmg, as well as create a variable instance to show the number of occurences of each event type.
+```{r firstsummary, cache=TRUE}
+summary <- stormdata %>%
+      group_by(evtype) %>%
+      summarise(instance = n(),
+                sumfatality = sum(fatalities, na.rm=T),
+                suminjur = sum(injuries, na.rm=T),
+                sumpropdmg = sum(totpropdmg, na.rm=T),
+                sumcropdmg = sum(totcropdmg, na.rm=T))
+
+str(summary)
+```
+
+This results in a table with 985 rows. A look at the table reveals that there are many rows with zero for all variables. Also, rows with fewer than 10 injuries or fatalities and fewer than $1000 in damage do not have a significant effect on this analysis therefore we'll remove those.
+
+```{r filter, cache=TRUE}
+summary <- filter(summary, sumfatality > 10 & suminjur > 10 |
+                   sumpropdmg > 1000 & sumcropdmg > 1000)
+
+str(summary)
+```
+
+This results in a more manageable 77 observations. Another look at the table reveals that there are many closely related event types. We'll collapse these into 21 classifications with a new variable, class. These are the transformations:
+
+* avalanche <- AVALANCHE
+* cold <- COLD, COLD/WIND CHILL, DAMAGING FREEZE, EXTREME COLD, EXTREME COLD/WIND CHILL, FREEZE, FROST, FROST/FREEZE
+* drought <- DROUGHT
+* dust storm <- DUST STORM, DUST STORM/HIGH WINDS
+* flood <- FLASH FLOOD, FLASH FLOOD/FLOOD, FLASH FLOODING, FLASH FLOODING/FLOOD, FLOOD, FLOOD, FLASH FLOOD, FLOODING, HEAVY RAINS/FLOODING, RIVER FLOOD, River Flooding, URBAN FLOOD, URBAN FLOODING, URBAN/SML STREAM FLD
+* fog <- DENSE FOG, FOG
+* hail <- HAIL, SMALL HAIL
+* heat <- EXCESSIVE HEAT, EXTREME HEAT, HEAT, HEAT WAVE, UNSEASONABLY WARM
+* heavy rain <- HEAVY RAIN, HEAVY RAINS, RAIN
+* hurr/trop storm <- HURRICANE, HURRICANE ERIN, HURRICANE FELIX, HURRICANE/TYPHOON, TROPICAL STORM, TROPICAL STORM GORDON, TYPHOON
+* ice <- ICE STORM
+* landslide <- LANDSLIDE
+* lightning <- LIGHTNING
+* other <- OTHER
+* snow <- BLIZZARD, HEAVY SNOW, WINTER STORM, WINTER STORMS, WINTER WEATHER, WINTER WEATHER/MIX
+* surf <- HEAVY SURF/HIGH SURF, HIGH SURF, RIP CURRENT, RIP CURRENTS, STORM SURGE, STORM SURGE/TIDE
+* tornado <- TORNADO
+* tstorm <- THUNDERSTORM WIND, THUNDERSTORM WINDS, TSTM WIND, TSTM WIND/HAIL
+* tsunami <- TSUNAMI
+* wildfire <- FOREST FIRES, WILD/FOREST FIRE, WILDFIRE, WILDFIRES
+* wind <- GUSTY WINDS, HIGH WIND, HIGH WINDS, HIGH WINDS/COLD, MARINE STRONG WIND, STRONG WIND, WIND
+
+```{r classification, cache=TRUE}
+class <- c("avalanche", "snow", "cold", "cold", "cold", "fog", "drought",
+           "dust storm", "dust storm", "heat", "cold", "cold", "heat",
+           "flood", "flood", "flood", "flood", "flood", "flood", "flood",
+           "fog", "wildfire", "cold", "cold", "cold", "wind", "hail",
+           "heat", "heat", "heavy rain", "heavy rain", "flood", "snow",
+           "surf", "surf", "wind", "wind", "wind", "hurr/trop storm",
+           "hurr/trop storm", "hurr/trop storm", "hurr/trop storm", "ice",
+           "landslide", "lightning", "wind", "other", "heavy rain", "surf",
+           "surf", "flood", "flood", "hail", "surf", "surf", "wind", "tstorm",
+           "tstorm", "tornado", "hurr/trop storm", "hurr/trop storm", "tstorm",
+           "tstorm", "tsunami", "hurr/trop storm", "heat", "flood", "flood",
+           "flood", "wildfire", "wildfire", "wildfire", "wind", "snow",
+           "snow", "snow", "snow")
+
+summary$class <- class
+```
+
+Now we summarize the data by the class variable and sum the variables instance, sumfatality, suminjur, sumpropdmg, sumcropdmg.
+```{r classummary, cache=TRUE}
+analysis <- summary %>%
+      group_by(class) %>%
+      summarise(instance = sum(instance),
+                sumfatality = sum(sumfatality, na.rm=T),
+                suminjur = sum(suminjur, na.rm=T),
+                sumpropdmg = sum(sumpropdmg, na.rm=T),
+                sumcropdmg = sum(sumcropdmg, na.rm=T)) %>%
+      arrange(desc(sumfatality))
+
+str(analysis)
+```
+
+This gives us 21 events in a tidy summary of the number of occurences (instance), number of fatalities (sumfatality), number of injuries (suminjur), total dollar value of property damage (sumpropdmg) and total dollar value of crop damage (totcropdmg) to complete our analysis. The results are below.

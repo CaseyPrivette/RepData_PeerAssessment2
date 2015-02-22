@@ -1,15 +1,15 @@
 ---
-title: "Impacts of Storms in the US Since 1950"
+title: "Impacts of Weather Events in the US, 1950-2011"
 author: "Casey Privette"
 date: "Friday, February 20, 2015"
-output: html_document
+output: pdf_document
 ---
 
-#Overview
-Synopsis goes here.
+#Summary
+In this report we will use data from the US National Oceanic and Atmospheric Administration to determine what types of weather events have the greates impact on human health and the economy. By reclassifying the data into groups based on commonalities in the type of event, we are able to calculate the total number of fatalities and injuries and also the estimated dollar amounts of property damage and crop damage. Using these totals it is shown that tornados cause the greatest number of deaths and injuries by a large margin over the next greates cause, heat. Further it is determined that flooding has caused the greatest economic impact in terms of the estimated cost of the damage to property and crops.
 
 #Data Processing
-First load the data into an R object.
+First download the data from NOAA and load it into an R data frame.
 ```{r loadingdata, cache=TRUE}
 setwd("~/DataScienceCoursera/ReproRes/RepData_PeerAssessment2")
 fileURL <- "http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
@@ -18,16 +18,16 @@ stormdata <- read.csv(bzfile("stormdata.csv.bz2"))
 print(date())
 ```
 
-Select the columns in the data frame to include only needed variables.
-```{r select, cache=T}
+Next we'll make all the column names lowercase for ease of typing. Then, we'll select only the columns in the data frame needed for our analysis.
+```{r select}
 library(dplyr)
 names(stormdata) <- tolower(names(stormdata))
 stormdata <- select(stormdata, evtype, fatalities, injuries, propdmg, 
                      propdmgexp, cropdmg, cropdmgexp)
 ```
 
-Convert the propdmgexp and cropdmgexp variables to a number and multiply values by propdmg and cropdmg variables to obtain new variables totpropdmg and totcropdmg to reflect the monetary damage in a constant dollars.
-```{r newvariable, cache=TRUE}
+To make sure that all damage estimates are in the same unit values we'll convert the propdmgexp and cropdmgexp variables to a number and multiply the values by propdmg and cropdmg variables to obtain new variables totpropdmg and totcropdmg to reflect the monetary damage in a constant dollars.
+```{r newvariable}
 stormdata$propdmgexp <- gsub("K", 1000, stormdata$propdmgexp)
 stormdata$propdmgexp <- gsub("M", 1000000, stormdata$propdmgexp)
 stormdata$propdmgexp <- gsub("B", 1000000000, stormdata$propdmgexp)
@@ -35,12 +35,16 @@ stormdata$propdmgexp <- gsub("B", 1000000000, stormdata$propdmgexp)
 stormdata$propdmgexp <- as.numeric(stormdata$propdmgexp)
 stormdata$totpropdmg <- stormdata$propdmg * stormdata$propdmgexp
 
+stormdata$cropdmgexp <- gsub("K", 1000, stormdata$cropdmgexp)
+stormdata$cropdmgexp <- gsub("M", 1000000, stormdata$cropdmgexp)
+stormdata$cropdmgexp <- gsub("B", 1000000000, stormdata$cropdmgexp)
+
 stormdata$cropdmgexp <- as.numeric(stormdata$cropdmgexp)
 stormdata$totcropdmg <- stormdata$cropdmg * stormdata$cropdmgexp
 ```
 
-Now summarize the data grouped by evtype variable and sum the variables fatalities, injuries, totpropdmg, totcropdmg, as well as create a variable instance to show the number of occurences of each event type.
-```{r firstsummary, cache=TRUE}
+Now we'll summarize the data grouped by evtype variable and sum the variables fatalities, injuries, totpropdmg, totcropdmg, as well as create a variable instance to show the number of occurences of each event type.
+```{r firstsummary}
 summary <- stormdata %>%
       group_by(evtype) %>%
       summarise(instance = n(),
@@ -54,19 +58,18 @@ str(summary)
 
 This results in a table with 985 rows. A look at the table reveals that there are many rows with zero for all variables. Also, rows with fewer than 10 injuries or fatalities and fewer than $1000 in damage do not have a significant effect on this analysis therefore we'll remove those.
 
-```{r filter, cache=TRUE}
+```{r filter}
 summary <- filter(summary, sumfatality > 10 & suminjur > 10 |
                    sumpropdmg > 1000 & sumcropdmg > 1000)
 
-str(summary)
+summary(summary)
 ```
 
-This results in a more manageable 77 observations. Another look at the table reveals that there are many closely related event types. We'll collapse these into 21 classifications with a new variable, class. These are the transformations:
+This results in a more manageable 118 observations. Another look at the table reveals that there are many closely related event types. We'll collapse these into 20 classifications with a new variable, class. These are the transformations:
 
 * avalanche <- AVALANCHE
 * cold <- COLD, COLD/WIND CHILL, DAMAGING FREEZE, EXTREME COLD, EXTREME COLD/WIND CHILL, FREEZE, FROST, FROST/FREEZE
 * drought <- DROUGHT
-* dust storm <- DUST STORM, DUST STORM/HIGH WINDS
 * flood <- FLASH FLOOD, FLASH FLOOD/FLOOD, FLASH FLOODING, FLASH FLOODING/FLOOD, FLOOD, FLOOD, FLASH FLOOD, FLOODING, HEAVY RAINS/FLOODING, RIVER FLOOD, River Flooding, URBAN FLOOD, URBAN FLOODING, URBAN/SML STREAM FLD
 * fog <- DENSE FOG, FOG
 * hail <- HAIL, SMALL HAIL
@@ -83,28 +86,35 @@ This results in a more manageable 77 observations. Another look at the table rev
 * tstorm <- THUNDERSTORM WIND, THUNDERSTORM WINDS, TSTM WIND, TSTM WIND/HAIL
 * tsunami <- TSUNAMI
 * wildfire <- FOREST FIRES, WILD/FOREST FIRE, WILDFIRE, WILDFIRES
-* wind <- GUSTY WINDS, HIGH WIND, HIGH WINDS, HIGH WINDS/COLD, MARINE STRONG WIND, STRONG WIND, WIND
+* wind <- DUST STORM, DUST STORM/HIGH WINDS, GUSTY WINDS, HIGH WIND, HIGH WINDS, HIGH WINDS/COLD, MARINE STRONG WIND, STRONG WIND, WIND
 
-```{r classification, cache=TRUE}
-class <- c("avalanche", "snow", "cold", "cold", "cold", "fog", "drought",
-           "dust storm", "dust storm", "heat", "cold", "cold", "heat",
-           "flood", "flood", "flood", "flood", "flood", "flood", "flood",
-           "fog", "wildfire", "cold", "cold", "cold", "wind", "hail",
-           "heat", "heat", "heavy rain", "heavy rain", "flood", "snow",
-           "surf", "surf", "wind", "wind", "wind", "hurr/trop storm",
-           "hurr/trop storm", "hurr/trop storm", "hurr/trop storm", "ice",
-           "landslide", "lightning", "wind", "other", "heavy rain", "surf",
-           "surf", "flood", "flood", "hail", "surf", "surf", "wind", "tstorm",
-           "tstorm", "tornado", "hurr/trop storm", "hurr/trop storm", "tstorm",
-           "tstorm", "tsunami", "hurr/trop storm", "heat", "flood", "flood",
-           "flood", "wildfire", "wildfire", "wildfire", "wind", "snow",
+```{r classification}
+class <- c("avalanche", "snow", "surf", "cold", "cold", "cold", "fog", 
+           "drought", "wind", "wind", "wind", "heat", "cold", "cold", 
+           "heat", "cold", "flood", "flood", "flood", "flood", "flood", 
+           "flood", "flood", "flood", "fog", "wildfire", "cold", "cold", 
+           "cold", "cold", "wind", "wind", "wind", "hail", "hail", "hail", 
+           "heat", "heat", "heat", "heavy rain", "surf", "heavy rain", 
+           "flood", "snow", "flood", "surf", "surf", "wind", "wind", 
+           "wind", "cold", "tropicalsystem", "tropicalsystem", 
+           "tropicalsystem", "tropicalsystem", "tropicalsystem", 
+           "tropicalsystem", "flood", "ice", "landslide", "lightning", 
+           "wind", "tstorm", "other", "heavy rain", "surf", "surf", "flood", 
+           "flood", "flood", "tstorm", "tstorm", "tstorm", "hail", "snow", 
+           "surf", "surf", "wind", "wind", "tstorm", "tstorm", "hail", 
+           "tstorm", "tstorm", "hail", "tstorm", "flood", "hail", "tstorm", 
+           "tstorm", "tstorm", "tornado", "tornado", "tornado", 
+           "tropicalsystem", "tropicalsystem", "tropicalsystem", 
+           "tropicalsystem", "tstorm", "hail", "tsunami", "tropicalsystem", 
+           "heat", "flood", "flood", "flood", "wildfire", "wildfire", 
+           "wildfire", "wildfire", "wind", "wind", "wind", "snow", "wind", 
            "snow", "snow", "snow")
 
 summary$class <- class
 ```
 
-Now we summarize the data by the class variable and sum the variables instance, sumfatality, suminjur, sumpropdmg, sumcropdmg.
-```{r classummary, cache=TRUE}
+Now we summarize the data by the class variable and sum the variables instance, sumfatality, suminjur, sumpropdmg, sumcropdmg as well as add fatalities and injuries into a new variable, totalcasualty, and add property damage and crop damage into a new variable, totaldamage.
+```{r classummary}
 analysis <- summary %>%
       group_by(class) %>%
       summarise(instance = sum(instance),
@@ -112,9 +122,43 @@ analysis <- summary %>%
                 suminjur = sum(suminjur, na.rm=T),
                 sumpropdmg = sum(sumpropdmg, na.rm=T),
                 sumcropdmg = sum(sumcropdmg, na.rm=T)) %>%
-      arrange(desc(sumfatality))
+      mutate(totalcasualty = sumfatality + suminjur,
+             totaldamage = sumpropdmg + sumcropdmg)
 
-str(analysis)
+analysis
 ```
 
-This gives us 21 events in a tidy summary of the number of occurences (instance), number of fatalities (sumfatality), number of injuries (suminjur), total dollar value of property damage (sumpropdmg) and total dollar value of crop damage (totcropdmg) to complete our analysis. The results are below.
+This gives us 20 types of weather events in a tidy summary of the number of occurences (instance), number of fatalities (sumfatality), number of injuries (suminjur), total dollar value of property damage (sumpropdmg) and total dollar value of crop damage (totcropdmg) to complete our analysis. The results are below.
+
+#Results
+To visualize the weather events that cause the most casualties and injuries we'll graph the top quartile of events that resulted in the most casualties and damage.  
+  
+First we'll take a look at injuries and fatalities for all weather events between 1950 and 2011.
+
+```{r healtheffects}
+casualty <- filter(analysis, totalcasualty > 4641)
+
+require(ggplot2)
+health <- ggplot(casualty, aes(class, totalcasualty))
+health + geom_bar(stat="identity", fill="steelblue") + 
+      labs(title="Top 5 Weather Events by Total Casualties", 
+           y="Fatalaties + Injuries", x="Weather Event")
+```
+
+It's clear that tornados cause the most harm to Americans health. This seems reasonable given the suddeness with which tornados occur combined with our inability to accurately predict when and where a tornado will touchdown.  
+  
+  
+Next we'll take a look the weather events that have caused the most damage in terms of dollars between 1950 and 2011.
+```{r damageeffect}
+damage <- analysis %>%
+      filter(totaldamage > 15990000000) %>%
+      mutate(damageinbillions = totaldamage / 1000000000)
+
+econ <- ggplot(damage, aes(class, damageinbillions))
+econ + geom_bar(stat="identity", fill="purple") +
+      labs(title="Top 5 Weather Events in Dollars of Damage", 
+           x="Weather Event", 
+           y="Total Property & Crop Damage (in billions of $)")
+```
+
+From this graph it's clear that floods have caused the most property damage, followed by tropical weather systems such as hurricanes and tropical storms. Again this is intuitive considering the wide areas that are effected by both floods and tropical systems.
